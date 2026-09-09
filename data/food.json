@@ -1,0 +1,252 @@
+[
+  {
+    "id": 1,
+    "name": "Ugali (White Maize)",
+    "serving_unit": "thick slice (150g)",
+    "description": "Standard firm maize meal ugali made with refined flour and water.",
+    "calories": 175,
+    "carbs_g": 38,
+    "protein_g": 3,
+    "fat_g": 1
+  },
+  {
+    "id": 2,
+    "name": "Sukuma Wiki (Collard Greens)",
+    "serving_unit": "cup (100g)",
+    "description": "Sautéed collard greens with onions, tomatoes, and cooking oil.",
+    "calories": 65,
+    "carbs_g": 6,
+    "protein_g": 2,
+    "fat_g": 4
+  },
+  {
+    "id": 3,
+    "name": "Nyama Choma (Beef)",
+    "serving_unit": "portion (150g)",
+    "description": "Grilled or roasted lean beef chunks, lightly salted.",
+    "calories": 320,
+    "carbs_g": 0,
+    "protein_g": 38,
+    "fat_g": 18
+  },
+  {
+    "id": 4,
+    "name": "Chapati",
+    "serving_unit": "1 piece (90g)",
+    "description": "Layered, pan-fried flatbread made with wheat flour and oil.",
+    "calories": 290,
+    "carbs_g": 42,
+    "protein_g": 6,
+    "fat_g": 11
+  },
+  {
+    "id": 5,
+    "name": "Ndengu (Green Grams Stew)",
+    "serving_unit": "bowl (200g)",
+    "description": "Thick, savory green gram stew cooked with onions and tomatoes.",
+    "calories": 220,
+    "carbs_g": 32,
+    "protein_g": 14,
+    "fat_g": 4
+  },
+  {
+    "id": 6,
+    "name": "Mandazi",
+    "serving_unit": "1 piece (60g)",
+    "description": "Sweet, lightly spiced deep-fried triangular dough pastry.",
+    "calories": 180,
+    "carbs_g": 26,
+    "protein_g": 3,
+    "fat_g": 7
+  },
+  {
+    "id": 7,
+    "name": "Kenyan Chai (with Milk & Sugar)",
+    "serving_unit": "mug (300ml)",
+    "description": "Spiced black tea brewed with whole milk and added sugar.",
+    "calories": 120,
+    "carbs_g": 18,
+    "protein_g": 4,
+    "fat_g": 4
+  },
+  {
+    "id": 8,
+    "name": "Roasted Peanuts (Salted)",
+    "serving_unit": "handful (30g)",
+    "description": "Crunchy roasted peanuts tossed in salt.",
+    "calories": 170,
+    "carbs_g": 5,
+    "protein_g": 7,
+    "fat_g": 14
+  },
+  {
+    "id": 9,
+    "name": "Viazi Karai",
+    "serving_unit": "2 pieces (100g)",
+    "description": "Boiled potatoes coated in yellow turmeric batter and deep-fried.",
+    "calories": 210,
+    "carbs_g": 28,
+    "protein_g": 3,
+    "fat_g": 10
+  },
+  {
+    "id": 10,
+    "name": "Kachumbari",
+    "serving_unit": "small bowl (80g)",
+    "description": "Fresh diced tomatoes, onions, and cilantro with lime and chilli.",
+    "calories": 25,
+    "carbs_g": 5,
+    "protein_g": 1,
+    "fat_g": 0
+  },
+  {
+    "id": 11,
+    "name": "Mixed Fresh Fruits (Mango, Melon, Banana)",
+    "serving_unit": "cup (150g)",
+    "description": "Assorted fresh tropical seasonal fruits.",
+    "calories": 90,
+    "carbs_g": 22,
+    "protein_g": 1,
+    "fat_g": 0
+  },
+  {
+    "id": 12,
+    "name": "Dal Bhajia",
+    "serving_unit": "portion (100g)",
+    "description": "Spiced split yellow pea fritters deep-fried until crispy.",
+    "calories": 260,
+    "carbs_g": 30,
+    "protein_g": 10,
+    "fat_g": 11
+  },
+  {
+    "id": 13,
+    "name": "Sweets / Confectionery",
+    "serving_unit": "2 pieces (20g)",
+    "description": "Sugar-based hard or chewy candies.",
+    "calories": 80,
+    "carbs_g": 20,
+    "protein_g": 0,
+    "fat_g": 0
+  },
+  {
+    "id": 14,
+    "name": "Biscuits (Standard Sweet)",
+    "serving_unit": "3 pieces (30g)",
+    "description": "Crunchy baked wheat biscuits.",
+    "calories": 140,
+    "carbs_g": 20,
+    "protein_g": 2,
+    "fat_g": 6
+  },
+  {
+    "id": 15,
+    "name": "Other Nuts (Raw or Roasted)",
+    "serving_unit": "handful (30g)",
+    "description": "Cashews, almonds, or macadamia nuts.",
+    "calories": 180,
+    "carbs_g": 6,
+    "protein_g": 5,
+    "fat_g": 16
+  },
+  {
+    "id": 16,
+    "name": "Chevda (Spiced Snack Mix)",
+    "serving_unit": "small cup (40g)",
+    "description": "Crispy potato/rice flake mix with lentils, peanuts, and spices.",
+    "calories": 200,
+    "carbs_g": 22,
+    "protein_g": 4,
+    "fat_g": 11
+  },
+  {
+    "id": 17,
+    "name": "Muffin / Cupcake",
+    "serving_unit": "1 piece (80g)",
+    "description": "Soft baked sweet snack cake.",
+    "calories": 280,
+    "carbs_g": 36,
+    "protein_g": 3,
+    "fat_g": 13
+  },
+  {
+    "id": 18,
+    "name": "Cookies",
+    "serving_unit": "2 pieces (40g)",
+    "description": "Baked sweet cookies (e.g., chocolate chip or butter cookies).",
+    "calories": 190,
+    "carbs_g": 26,
+    "protein_g": 2,
+    "fat_g": 9
+  },
+  {
+    "id": 19,
+    "name": "Ukwaju Juice (Tamarind Drink)",
+    "serving_unit": "glass (300ml)",
+    "description": "Refreshing sweet-and-sour tamarind juice beverage with sugar.",
+    "calories": 130,
+    "carbs_g": 33,
+    "protein_g": 1,
+    "fat_g": 0
+  },
+  {
+    "id": 20,
+    "name": "Beef Pilau",
+    "serving_unit": "plate (300g)",
+    "description": "Aromatic rice dish cooked with tender beef chunks, cumin, garlic, ginger, and whole spices.",
+    "calories": 450,
+    "carbs_g": 60,
+    "protein_g": 15,
+    "fat_g": 16
+  },
+  {
+    "id": 21,
+    "name": "Chicken Biryani",
+    "serving_unit": "plate (350g)",
+    "description": "Layered Swahili spiced rice with rich chicken gravy, caramelized onions, and yogurt.",
+    "calories": 520,
+    "carbs_g": 65,
+    "protein_g": 22,
+    "fat_g": 18
+  },
+  {
+    "id": 22,
+    "name": "Beef Stew",
+    "serving_unit": "bowl (250g)",
+    "description": "Rich tomato-based beef stew simmered with onions, carrots, and potatoes.",
+    "calories": 280,
+    "carbs_g": 8,
+    "protein_g": 26,
+    "fat_g": 16
+  },
+  {
+    "id": 23,
+    "name": "Chicken Stew (Kuku)",
+    "serving_unit": "bowl (250g)",
+    "description": "Savory chicken pieces cooked in a flavorful tomato and onion broth.",
+    "calories": 310,
+    "carbs_g": 6,
+    "protein_g": 30,
+    "fat_g": 18
+  },
+  {
+    "id": 24,
+    "name": "Omena (Silver Cyprinid)",
+    "serving_unit": "cup (150g)",
+    "description": "Nutrient-dense small lake fish cooked in a thick tomato, onion, and oil sauce.",
+    "calories": 240,
+    "carbs_g": 5,
+    "protein_g": 25,
+    "fat_g": 12
+  },
+  {
+    "id": 25,
+    "name": "Mackerel Fish (Una / Samaki)",
+    "serving_unit": "1 medium piece (150g)",
+    "description": "Pan-fried or stewed mackerel fish rich in healthy omega-3 fats.",
+    "calories": 290,
+    "carbs_g": 2,
+    "protein_g": 28,
+    "fat_g": 18
+  }
+]
