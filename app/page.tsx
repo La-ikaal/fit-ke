@@ -30,8 +30,21 @@ export default function FitnessDashboard() {
 
   // Dashboard Stats States
   const [targetCalories, setTargetCalories] = useState<number>(500);
-  const [waterGlasses, setWaterGlasses] = useState<number>(0);
+  
+  // Persistent Water Intake State (saved to localStorage with today's date key)
+  const todayKey = `water_intake_${new Date().toISOString().split('T')[0]}`;
+  const [waterGlasses, setWaterGlasses] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(todayKey);
+      return saved !== null ? Number(saved) : 0;
+    }
+    return 0;
+  });
   const maxWaterGlasses = 8;
+
+  useEffect(() => {
+    localStorage.setItem(todayKey, waterGlasses.toString());
+  }, [waterGlasses, todayKey]);
 
   // Workouts States
   const [exercises, setExercises] = useState<Workout[]>([]);
@@ -324,7 +337,7 @@ export default function FitnessDashboard() {
             {/* Hydration Tracker Card */}
             <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-semibold text-zinc-400">Water Intake</span>
+                <span className="text-xs font-semibold text-zinc-400">Water Intake (Saved)</span>
                 <span className="text-xs text-cyan-400 font-bold">{waterGlasses} / {maxWaterGlasses} glasses</span>
               </div>
               <div className="flex gap-1 py-1">
@@ -338,7 +351,7 @@ export default function FitnessDashboard() {
                 ))}
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-zinc-800/80">
-                <span className="text-xs text-zinc-500">~{waterGlasses * 250} ml logged</span>
+                <span className="text-xs text-zinc-500">~{waterGlasses * 250} ml saved</span>
                 <button 
                   onClick={() => setWaterGlasses(Math.max(0, waterGlasses - 1))}
                   className="text-xs text-zinc-400 hover:text-zinc-200 cursor-pointer"
