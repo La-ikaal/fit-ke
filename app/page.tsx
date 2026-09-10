@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 
 // Types
@@ -31,20 +33,23 @@ export default function FitnessDashboard() {
   // Dashboard Stats States
   const [targetCalories, setTargetCalories] = useState<number>(500);
   
-  // Persistent Water Intake State (saved to localStorage with today's date key)
-  const todayKey = `water_intake_${new Date().toISOString().split('T')[0]}`;
-  const [waterGlasses, setWaterGlasses] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(todayKey);
-      return saved !== null ? Number(saved) : 0;
-    }
-    return 0;
-  });
+  // Persistent Water Intake State (safe for SSR with useEffect)
+  const [waterGlasses, setWaterGlasses] = useState<number>(0);
   const maxWaterGlasses = 8;
 
   useEffect(() => {
-    localStorage.setItem(todayKey, waterGlasses.toString());
-  }, [waterGlasses, todayKey]);
+    const todayKey = `water_intake_${new Date().toISOString().split('T')[0]}`;
+    const saved = localStorage.getItem(todayKey);
+    if (saved !== null) {
+      setWaterGlasses(Number(saved));
+    }
+  }, []);
+
+  const handleWaterChange = (newCount: number) => {
+    setWaterGlasses(newCount);
+    const todayKey = `water_intake_${new Date().toISOString().split('T')[0]}`;
+    localStorage.setItem(todayKey, newCount.toString());
+  };
 
   // Workouts States
   const [exercises, setExercises] = useState<Workout[]>([]);
@@ -150,7 +155,7 @@ export default function FitnessDashboard() {
         setWeightLogs([{ id: Date.now().toString(), date: new Date().toISOString().split('T')[0], weightKg: val }, ...weightLogs]);
       }
     } else if (quickLogType === 'water') {
-      if (waterGlasses < maxWaterGlasses) setWaterGlasses(waterGlasses + 1);
+      if (waterGlasses < maxWaterGlasses) handleWaterChange(waterGlasses + 1);
     } else if (quickLogType === 'workout') {
       setExercises([{ id: Date.now().toString(), name: 'Quick Interval Session', durationMin: 20, caloriesBurned: 160 }, ...exercises]);
     }
@@ -344,7 +349,7 @@ export default function FitnessDashboard() {
                 {Array.from({ length: maxWaterGlasses }).map((_, i) => (
                   <div 
                     key={i} 
-                    onClick={() => setWaterGlasses(i < waterGlasses ? i : i + 1)}
+                    onClick={() => handleWaterChange(i < waterGlasses ? i : i + 1)}
                     className={`flex-1 h-6 rounded-md cursor-pointer transition ${i < waterGlasses ? 'bg-cyan-500 shadow-sm' : 'bg-zinc-950 border border-zinc-800'}`}
                     title={`Glass ${i + 1}`}
                   ></div>
@@ -353,7 +358,7 @@ export default function FitnessDashboard() {
               <div className="flex justify-between items-center pt-2 border-t border-zinc-800/80">
                 <span className="text-xs text-zinc-500">~{waterGlasses * 250} ml saved</span>
                 <button 
-                  onClick={() => setWaterGlasses(Math.max(0, waterGlasses - 1))}
+                  onClick={() => handleWaterChange(Math.max(0, waterGlasses - 1))}
                   className="text-xs text-zinc-400 hover:text-zinc-200 cursor-pointer"
                 >
                   Reset / -1
