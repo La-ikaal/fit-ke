@@ -43,9 +43,19 @@ interface JournalEntry {
   id: number;
   date: string;
   title: string;
+  milestone?: string;
   content: string;
   imageUrl?: string;
 }
+
+const COMMON_EXERCISES = [
+  { name: "Jump rope intervals", ratePerMin: 10 },
+  { name: "Brisk Walking", ratePerMin: 4 },
+  { name: "Running / Jogging", ratePerMin: 9 },
+  { name: "Dance cardio", ratePerMin: 6 },
+  { name: "HIIT bodyweight", ratePerMin: 8 },
+  { name: "Lower body strength", ratePerMin: 5 },
+];
 
 const foodsData: FoodItem[] = Array.isArray(foodJson) 
   ? foodJson 
@@ -66,16 +76,29 @@ export default function Home() {
   const [goals, setGoals] = useState<Goals>({ calories: 2000, carbs: 220, protein: 130, fat: 65 });
   const [waterMl, setWaterMl] = useState(0);
   const [waterGoal, setWaterGoal] = useState(2500);
+  
+  // Exercise States
   const [exercises, setExercises] = useState<ExerciseItem[]>([]);
   const [exerciseName, setExerciseName] = useState("");
-  const [exerciseDuration, setExerciseDuration] = useState(30);
-  const [exerciseCalories, setExerciseCalories] = useState(150);
+  const [exerciseDuration, setExerciseDuration] = useState<number>(30);
+  const [exerciseCalories, setExerciseCalories] = useState<number>(150);
+  const [showExerciseSuggestions, setShowExerciseSuggestions] = useState(false);
+
+  // Weight States
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [currentWeightInput, setCurrentWeightInput] = useState("");
+  const [editingWeightId, setEditingWeightId] = useState<number | null>(null);
+  const [editingWeightValue, setEditingWeightValue] = useState("");
+  
   const [goalWeight, setGoalWeight] = useState<number>(65);
   const [goalDate, setGoalDate] = useState("2026-12-31");
+  const [savedGoalWeight, setSavedGoalWeight] = useState<number>(65);
+  const [savedGoalDate, setSavedGoalDate] = useState("2026-12-31");
+
+  // Journal States
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [journalTitle, setJournalTitle] = useState("");
+  const [journalMilestone, setJournalMilestone] = useState("");
   const [journalContent, setJournalContent] = useState("");
   const [journalImageUrl, setJournalImageUrl] = useState("");
 
@@ -100,7 +123,9 @@ export default function Home() {
     loadStorage("fit_ke_exercises", setExercises);
     loadStorage("fit_ke_weights", setWeightLogs);
     loadStorage("fit_ke_goal_weight", setGoalWeight);
+    loadStorage("fit_ke_saved_goal_weight", setSavedGoalWeight);
     loadStorage("fit_ke_goal_date", setGoalDate);
+    loadStorage("fit_ke_saved_goal_date", setSavedGoalDate);
     loadStorage("fit_ke_journal", setJournalEntries);
   }, []);
 
@@ -114,13 +139,15 @@ export default function Home() {
     localStorage.setItem("fit_ke_exercises", JSON.stringify(exercises));
     localStorage.setItem("fit_ke_weights", JSON.stringify(weightLogs));
     localStorage.setItem("fit_ke_goal_weight", JSON.stringify(goalWeight));
+    localStorage.setItem("fit_ke_saved_goal_weight", JSON.stringify(savedGoalWeight));
     localStorage.setItem("fit_ke_goal_date", JSON.stringify(goalDate));
+    localStorage.setItem("fit_ke_saved_goal_date", JSON.stringify(savedGoalDate));
     localStorage.setItem("fit_ke_journal", JSON.stringify(journalEntries));
-  }, [log, goals, waterMl, waterGoal, exercises, weightLogs, goalWeight, goalDate, journalEntries, mounted]);
+  }, [log, goals, waterMl, waterGoal, exercises, weightLogs, goalWeight, savedGoalWeight, goalDate, savedGoalDate, journalEntries, mounted]);
 
   if (!mounted) return null;
 
-  // Calculations
+  // Nutrition Calculations (Untouched & Fully Working)
   const totalCalories = log.reduce((sum, item) => sum + item.calories * item.servings, 0);
   const totalCarbs = log.reduce((sum, item) => sum + item.carbs_g * item.servings, 0);
   const totalProtein = log.reduce((sum, item) => sum + item.protein_g * item.servings, 0);
@@ -146,10 +173,28 @@ export default function Home() {
     setLog(log.filter(item => !(item.id === id && item.meal === meal)));
   };
 
-  // Automatically update calories based on minutes (approx 5 kcal per minute baseline)
-  const handleDurationChange = (val: number) => {
-    setExerciseDuration(val);
-    setExerciseCalories(Math.round(val * 5));
+  // Dynamic Exercise Logic based on time and name lookup
+  const calculateCaloriesForExercise = (name: string, mins: number) => {
+    const matched = COMMON_EXERCISES.find(ex => ex.name.toLowerCase() === name.toLowerCase());
+    const rate = matched ? matched.ratePerMin : 5; // default 5 kcal/min
+    return Math.round(mins * rate);
+  };
+
+  const handleExerciseNameChange = (val: string) => {
+    setExerciseName(val);
+    setShowExerciseSuggestions(true);
+    setExerciseCalories(calculateCaloriesForExercise(val, exerciseDuration));
+  };
+
+  const handleDurationChange = (mins: number) => {
+    setExerciseDuration(mins);
+    setExerciseCalories(calculateCaloriesForExercise(exerciseName, mins));
+  };
+
+  const selectSuggestedExercise = (name: string) => {
+    setExerciseName(name);
+    setShowExerciseSuggestions(false);
+    setExerciseCalories(calculateCaloriesForExercise(name, exerciseDuration));
   };
 
   const addExercise = (e: React.FormEvent) => {
@@ -161,10 +206,17 @@ export default function Home() {
       durationMin: Number(exerciseDuration),
       caloriesBurned: Number(exerciseCalories),
     };
-    setExercises([...exercises, newEx]);
+    setExercises([newEx, ...exercises]);
     setExerciseName("");
     setExerciseDuration(30);
     setExerciseCalories(150);
+  };
+
+  // Weight Management Handlers
+  const saveGoalMilestone = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavedGoalWeight(goalWeight);
+    setSavedGoalDate(goalDate);
   };
 
   const addWeightLog = (e: React.FormEvent) => {
@@ -179,6 +231,14 @@ export default function Home() {
     setCurrentWeightInput("");
   };
 
+  const updateWeightLog = (id: number) => {
+    if (!editingWeightValue) return;
+    setWeightLogs(weightLogs.map(w => w.id === id ? { ...w, weightKg: Number(editingWeightValue) } : w));
+    setEditingWeightId(null);
+    setEditingWeightValue("");
+  };
+
+  // Journal / Blog Handlers
   const addJournalEntry = (e: React.FormEvent) => {
     e.preventDefault();
     if (!journalTitle.trim() || !journalContent.trim()) return;
@@ -186,11 +246,13 @@ export default function Home() {
       id: Date.now(),
       date: new Date().toLocaleDateString(),
       title: journalTitle,
+      milestone: journalMilestone.trim() ? journalMilestone.trim() : undefined,
       content: journalContent,
       imageUrl: journalImageUrl.trim() ? journalImageUrl.trim() : undefined,
     };
     setJournalEntries([newEntry, ...journalEntries]);
     setJournalTitle("");
+    setJournalMilestone("");
     setJournalContent("");
     setJournalImageUrl("");
   };
@@ -200,7 +262,7 @@ export default function Home() {
       <div className="max-w-4xl mx-auto space-y-8">
         
         {!isStarted ? (
-          /* PAGE 1: The Landing View */
+          /* PAGE 1: Landing View */
           <div className="bg-zinc-900/80 border border-emerald-500/30 rounded-3xl p-8 md:p-12 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center shadow-2xl shadow-emerald-950/20 my-auto">
             <div className="space-y-6">
               <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold px-3.5 py-1.5 rounded-full shadow-sm">
@@ -234,13 +296,10 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-              <div className="relative z-10 inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-300 bg-emerald-950/80 border border-emerald-800/80 px-3 py-1 rounded-full">
-                <span>✨ Designed for Mombasa & Beyond</span>
-              </div>
             </div>
           </div>
         ) : (
-          /* PAGE 2: Header, Navigation Tabs, and Tab Contents */
+          /* PAGE 2: Main Dashboard */
           <>
             <header className="border-b border-zinc-800/80 pb-4 space-y-4">
               <div className="flex justify-between items-end">
@@ -299,7 +358,7 @@ export default function Home() {
               </div>
             </header>
 
-            {/* TAB 1: NUTRITION & MACROS */}
+            {/* TAB 1: NUTRITION & MACROS (Preserved Fully) */}
             {activeTab === "nutrition" && (
               <div className="space-y-6">
                 <section className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-5 shadow-lg">
@@ -487,7 +546,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* TAB 2: WATER & EXERCISE */}
+            {/* TAB 2: WATER & EXERCISE (With Autocomplete & Dynamic Time Scaling) */}
             {activeTab === "fitness" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-bold text-zinc-200">Water & Exercise Tracking</h2>
@@ -530,25 +589,43 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Exercise Log Form */}
+                  {/* Exercise Log Form with Autocomplete */}
                   <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
                     <h3 className="text-zinc-100 font-bold flex items-center gap-2">🏃‍♂️ Log Workout</h3>
-                    <form onSubmit={addExercise} className="space-y-3">
-                      <div>
+                    <form onSubmit={addExercise} className="space-y-3 relative">
+                      <div className="relative">
                         <label className="text-xs text-zinc-400 block mb-1">Workout Name</label>
                         <input 
                           type="text" 
-                          placeholder="e.g. Jump rope intervals, Walk, Dance cardio"
+                          placeholder="Type e.g. Jump rope, Run, Walk..."
                           value={exerciseName}
-                          onChange={(e) => setExerciseName(e.target.value)}
+                          onChange={(e) => handleExerciseNameChange(e.target.value)}
+                          onFocus={() => setShowExerciseSuggestions(true)}
                           className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
                         />
+                        {/* Autocomplete Dropdown suggestions */}
+                        {showExerciseSuggestions && (
+                          <div className="absolute z-20 left-0 right-0 mt-1 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl max-h-40 overflow-y-auto">
+                            {COMMON_EXERCISES.filter(item => item.name.toLowerCase().includes(exerciseName.toLowerCase())).map((item) => (
+                              <div
+                                key={item.name}
+                                onClick={() => selectSuggestedExercise(item.name)}
+                                className="px-3.5 py-2 text-xs text-zinc-300 hover:bg-emerald-500/10 hover:text-emerald-300 cursor-pointer transition flex justify-between items-center"
+                              >
+                                <span>{item.name}</span>
+                                <span className="text-[10px] text-zinc-500">~{item.ratePerMin} kcal/min</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
+
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="text-xs text-zinc-400 block mb-1">Duration (min)</label>
                           <input 
                             type="number" 
+                            min="1"
                             value={exerciseDuration}
                             onChange={(e) => handleDurationChange(Number(e.target.value))}
                             className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
@@ -560,10 +637,11 @@ export default function Home() {
                             type="number" 
                             value={exerciseCalories}
                             onChange={(e) => setExerciseCalories(Number(e.target.value))}
-                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500 font-bold text-emerald-400"
                           />
                         </div>
                       </div>
+
                       <button 
                         type="submit"
                         className="w-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-zinc-950 font-bold py-2.5 rounded-xl text-xs transition shadow-md cursor-pointer mt-1"
@@ -603,7 +681,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* TAB 3: WEIGHT & GOALS */}
+            {/* TAB 3: WEIGHT & GOALS (Simplified Save Target & Editable Entries) */}
             {activeTab === "weight" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-bold text-zinc-200">Weight & Goal Management</h2>
@@ -612,7 +690,7 @@ export default function Home() {
                   {/* Goal Configuration */}
                   <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
                     <h3 className="text-zinc-100 font-bold">🎯 Target Milestone</h3>
-                    <div className="space-y-3">
+                    <form onSubmit={saveGoalMilestone} className="space-y-3">
                       <div>
                         <label className="text-xs text-zinc-400 block mb-1">Target Weight (kg)</label>
                         <input 
@@ -631,9 +709,15 @@ export default function Home() {
                           className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
-                      <div className="pt-2 text-xs text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl">
-                        Target set for {goalWeight || "___"} kg by {goalDate || "___"}. Keep pushing!
-                      </div>
+                      <button 
+                        type="submit"
+                        className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
+                      >
+                        Save
+                      </button>
+                    </form>
+                    <div className="pt-1 text-xs text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl">
+                      Active Target: {savedGoalWeight} kg by {savedGoalDate}.
                     </div>
                   </div>
 
@@ -656,13 +740,13 @@ export default function Home() {
                         type="submit"
                         className="w-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-zinc-950 font-bold py-2.5 rounded-xl text-xs transition shadow-md cursor-pointer"
                       >
-                        Save Weight Entry
+                        Save
                       </button>
                     </form>
                   </div>
                 </div>
 
-                {/* Weight History */}
+                {/* Weight History with Inline Edit */}
                 <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
                   <h3 className="text-zinc-100 font-bold">Weight History Log</h3>
                   <div className="space-y-3">
@@ -674,7 +758,36 @@ export default function Home() {
                       weightLogs.map((w) => (
                         <div key={w.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 flex justify-between items-center">
                           <span className="text-xs text-zinc-400">{w.date}</span>
-                          <span className="font-bold text-emerald-400 text-sm">{w.weightKg} kg</span>
+                          
+                          {editingWeightId === w.id ? (
+                            <div className="flex items-center gap-2">
+                              <input 
+                                type="number" 
+                                step="0.1"
+                                value={editingWeightValue}
+                                onChange={(e) => setEditingWeightValue(e.target.value)}
+                                className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-100"
+                              />
+                              <button onClick={() => updateWeightLog(w.id)} className="text-xs bg-emerald-500 text-zinc-950 font-bold px-2 py-1 rounded">Save</button>
+                              <button onClick={() => setEditingWeightId(null)} className="text-xs text-zinc-400 px-2 py-1">Cancel</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-3">
+                              <span className="font-bold text-emerald-400 text-sm">{w.weightKg} kg</span>
+                              <button 
+                                onClick={() => { setEditingWeightId(w.id); setEditingWeightValue(String(w.weightKg)); }}
+                                className="text-[11px] text-zinc-400 hover:text-zinc-200 underline cursor-pointer"
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                onClick={() => setWeightLogs(weightLogs.filter(item => item.id !== w.id))}
+                                className="text-[11px] text-rose-400 hover:text-rose-300 cursor-pointer"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))
                     )}
@@ -683,21 +796,31 @@ export default function Home() {
               </div>
             )}
 
-            {/* TAB 4: BLOG & JOURNAL */}
+            {/* TAB 4: BLOG & JOURNAL (Milestones, Pictures, Comments/Reflections) */}
             {activeTab === "blog" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-bold text-zinc-200">Blog & Personal Journal</h2>
                 
                 <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
-                  <h3 className="text-zinc-100 font-bold">✍️ Write a Reflection</h3>
+                  <h3 className="text-zinc-100 font-bold">✍️ Share Milestones & Reflections</h3>
                   <form onSubmit={addJournalEntry} className="space-y-3">
                     <div>
                       <label className="text-xs text-zinc-400 block mb-1">Title</label>
                       <input 
                         type="text" 
-                        placeholder="e.g. Consistency over perfection"
+                        placeholder="e.g. Completed my first week strong!"
                         value={journalTitle}
                         onChange={(e) => setJournalTitle(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-zinc-400 block mb-1">Milestone Tag (optional)</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. 5kg down / Hit water goal 7 days straight"
+                        value={journalMilestone}
+                        onChange={(e) => setJournalMilestone(e.target.value)}
                         className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
                       />
                     </div>
@@ -712,10 +835,10 @@ export default function Home() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-zinc-400 block mb-1">Content</label>
+                      <label className="text-xs text-zinc-400 block mb-1">Comments / Reflections</label>
                       <textarea 
                         rows={4}
-                        placeholder="How did your workouts, meals, and mindset feel today?" 
+                        placeholder="Share your thoughts, feelings, or how your fitness journey is going..." 
                         value={journalContent}
                         onChange={(e) => setJournalContent(e.target.value)}
                         className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500 resize-none"
@@ -732,16 +855,23 @@ export default function Home() {
 
                 {/* Journal Feed */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-bold text-zinc-200">Your Journal Entries</h3>
+                  <h3 className="text-lg font-bold text-zinc-200">Your Journal & Milestones Feed</h3>
                   {journalEntries.length === 0 ? (
                     <div className="text-center py-12 border border-dashed border-zinc-800 rounded-2xl text-zinc-500 text-xs">
-                      No journal entries yet. Write your first reflection above!
+                      No journal entries yet. Share your first milestone or comment above!
                     </div>
                   ) : (
                     journalEntries.map((entry) => (
                       <div key={entry.id} className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-3">
                         <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-zinc-100 text-base">{entry.title}</h4>
+                          <div>
+                            <h4 className="font-bold text-zinc-100 text-base">{entry.title}</h4>
+                            {entry.milestone && (
+                              <span className="inline-block mt-1 text-[11px] font-semibold text-teal-300 bg-teal-500/10 border border-teal-500/20 px-2 py-0.5 rounded-md">
+                                🏆 Milestone: {entry.milestone}
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
                             {entry.date}
                           </span>
