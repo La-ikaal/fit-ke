@@ -44,6 +44,7 @@ interface JournalEntry {
   date: string;
   title: string;
   content: string;
+  imageUrl?: string;
 }
 
 const foodsData: FoodItem[] = Array.isArray(foodJson) 
@@ -71,11 +72,12 @@ export default function Home() {
   const [exerciseCalories, setExerciseCalories] = useState(150);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [currentWeightInput, setCurrentWeightInput] = useState("");
-  const [goalWeight, setGoalWeight] = useState(65);
+  const [goalWeight, setGoalWeight] = useState<number>(65);
   const [goalDate, setGoalDate] = useState("2026-12-31");
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [journalTitle, setJournalTitle] = useState("");
   const [journalContent, setJournalContent] = useState("");
+  const [journalImageUrl, setJournalImageUrl] = useState("");
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -144,6 +146,12 @@ export default function Home() {
     setLog(log.filter(item => !(item.id === id && item.meal === meal)));
   };
 
+  // Automatically update calories based on minutes (approx 5 kcal per minute baseline)
+  const handleDurationChange = (val: number) => {
+    setExerciseDuration(val);
+    setExerciseCalories(Math.round(val * 5));
+  };
+
   const addExercise = (e: React.FormEvent) => {
     e.preventDefault();
     if (!exerciseName.trim()) return;
@@ -155,6 +163,8 @@ export default function Home() {
     };
     setExercises([...exercises, newEx]);
     setExerciseName("");
+    setExerciseDuration(30);
+    setExerciseCalories(150);
   };
 
   const addWeightLog = (e: React.FormEvent) => {
@@ -177,10 +187,12 @@ export default function Home() {
       date: new Date().toLocaleDateString(),
       title: journalTitle,
       content: journalContent,
+      imageUrl: journalImageUrl.trim() ? journalImageUrl.trim() : undefined,
     };
     setJournalEntries([newEntry, ...journalEntries]);
     setJournalTitle("");
     setJournalContent("");
+    setJournalImageUrl("");
   };
 
   return (
@@ -538,7 +550,7 @@ export default function Home() {
                           <input 
                             type="number" 
                             value={exerciseDuration}
-                            onChange={(e) => setExerciseDuration(Number(e.target.value))}
+                            onChange={(e) => handleDurationChange(Number(e.target.value))}
                             className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
                           />
                         </div>
@@ -620,7 +632,7 @@ export default function Home() {
                         />
                       </div>
                       <div className="pt-2 text-xs text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl">
-                        Target set for {goalWeight} kg by {goalDate}. Keep pushing!
+                        Target set for {goalWeight || "___"} kg by {goalDate || "___"}. Keep pushing!
                       </div>
                     </div>
                   </div>
@@ -690,6 +702,16 @@ export default function Home() {
                       />
                     </div>
                     <div>
+                      <label className="text-xs text-zinc-400 block mb-1">Photo URL (optional)</label>
+                      <input 
+                        type="url" 
+                        placeholder="https://example.com/image.jpg"
+                        value={journalImageUrl}
+                        onChange={(e) => setJournalImageUrl(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
                       <label className="text-xs text-zinc-400 block mb-1">Content</label>
                       <textarea 
                         rows={4}
@@ -724,6 +746,11 @@ export default function Home() {
                             {entry.date}
                           </span>
                         </div>
+                        {entry.imageUrl && (
+                          <div className="overflow-hidden rounded-xl border border-zinc-800 max-h-80 bg-zinc-950">
+                            <img src={entry.imageUrl} alt={entry.title} className="w-full h-full object-cover" />
+                          </div>
+                        )}
                         <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{entry.content}</p>
                       </div>
                     ))
