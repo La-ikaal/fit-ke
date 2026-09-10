@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
 
 // Types
@@ -30,29 +28,30 @@ interface JournalEntry {
 export default function FitnessDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
 
-  // Dashboard Stats States
-  const [targetCalories, setTargetCalories] = useState<number>(500);
+  // Dashboard Stats States (with localStorage initialization)
+  const [targetCalories, setTargetCalories] = useState<number>(() => {
+    const saved = localStorage.getItem('iky_target_calories');
+    return saved ? JSON.parse(saved) : 500;
+  });
   
-  // Persistent Water Intake State (safe for SSR with useEffect)
-  const [waterGlasses, setWaterGlasses] = useState<number>(0);
+  const [waterGlasses, setWaterGlasses] = useState<number>(() => {
+    const saved = localStorage.getItem('iky_water_glasses');
+    const savedDate = localStorage.getItem('iky_water_date');
+    const today = new Date().toISOString().split('T')[0];
+    // Reset water count if it's a new day
+    if (savedDate === today && saved) {
+      return JSON.parse(saved);
+    }
+    return 0;
+  });
+  
   const maxWaterGlasses = 8;
 
-  useEffect(() => {
-    const todayKey = `water_intake_${new Date().toISOString().split('T')[0]}`;
-    const saved = localStorage.getItem(todayKey);
-    if (saved !== null) {
-      setWaterGlasses(Number(saved));
-    }
-  }, []);
-
-  const handleWaterChange = (newCount: number) => {
-    setWaterGlasses(newCount);
-    const todayKey = `water_intake_${new Date().toISOString().split('T')[0]}`;
-    localStorage.setItem(todayKey, newCount.toString());
-  };
-
   // Workouts States
-  const [exercises, setExercises] = useState<Workout[]>([]);
+  const [exercises, setExercises] = useState<Workout[]>(() => {
+    const saved = localStorage.getItem('iky_exercises');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [exerciseName, setExerciseName] = useState<string>('Jump Rope Intervals');
   const [customExerciseName, setCustomExerciseName] = useState<string>('');
   const [exerciseDuration, setExerciseDuration] = useState<number>(30);
@@ -61,15 +60,27 @@ export default function FitnessDashboard() {
   // Weight & Goals States
   const [goalWeight, setGoalWeight] = useState<number>(65);
   const [goalDate, setGoalDate] = useState<string>('2026-12-31');
-  const [savedGoalWeight, setSavedGoalWeight] = useState<number>(65);
-  const [savedGoalDate, setSavedGoalDate] = useState<string>('2026-12-31');
+  const [savedGoalWeight, setSavedGoalWeight] = useState<number>(() => {
+    const saved = localStorage.getItem('iky_goal_weight');
+    return saved ? JSON.parse(saved) : 65;
+  });
+  const [savedGoalDate, setSavedGoalDate] = useState<string>(() => {
+    const saved = localStorage.getItem('iky_goal_date');
+    return saved ? saved : '2026-12-31';
+  });
   const [currentWeightInput, setCurrentWeightInput] = useState<string>('');
-  const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
+  const [weightLogs, setWeightLogs] = useState<WeightLog[]>(() => {
+    const saved = localStorage.getItem('iky_weight_logs');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [editingWeightId, setEditingWeightId] = useState<string | null>(null);
   const [editingWeightValue, setEditingWeightValue] = useState<string>('');
 
   // Blog & Journal States
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(() => {
+    const saved = localStorage.getItem('iky_journal_entries');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [journalTitle, setJournalTitle] = useState<string>('');
   const [journalMilestone, setJournalMilestone] = useState<string>('');
   const [journalContent, setJournalContent] = useState<string>('');
@@ -79,6 +90,33 @@ export default function FitnessDashboard() {
   const [showQuickLogModal, setShowQuickLogModal] = useState<boolean>(false);
   const [quickLogType, setQuickLogType] = useState<'workout' | 'weight' | 'water'>('workout');
   const [quickWeightInput, setQuickWeightInput] = useState<string>('');
+
+  // Effects to persist state changes to localStorage
+  useEffect(() => {
+    localStorage.setItem('iky_target_calories', JSON.stringify(targetCalories));
+  }, [targetCalories]);
+
+  useEffect(() => {
+    localStorage.setItem('iky_water_glasses', JSON.stringify(waterGlasses));
+    localStorage.setItem('iky_water_date', new Date().toISOString().split('T')[0]);
+  }, [waterGlasses]);
+
+  useEffect(() => {
+    localStorage.setItem('iky_exercises', JSON.stringify(exercises));
+  }, [exercises]);
+
+  useEffect(() => {
+    localStorage.setItem('iky_goal_weight', JSON.stringify(savedGoalWeight));
+    localStorage.setItem('iky_goal_date', savedGoalDate);
+  }, [savedGoalWeight, savedGoalDate]);
+
+  useEffect(() => {
+    localStorage.setItem('iky_weight_logs', JSON.stringify(weightLogs));
+  }, [weightLogs]);
+
+  useEffect(() => {
+    localStorage.setItem('iky_journal_entries', JSON.stringify(journalEntries));
+  }, [journalEntries]);
 
   // Computed totals
   const totalCaloriesBurned = exercises.reduce((sum, item) => sum + item.caloriesBurned, 0);
@@ -155,7 +193,7 @@ export default function FitnessDashboard() {
         setWeightLogs([{ id: Date.now().toString(), date: new Date().toISOString().split('T')[0], weightKg: val }, ...weightLogs]);
       }
     } else if (quickLogType === 'water') {
-      if (waterGlasses < maxWaterGlasses) handleWaterChange(waterGlasses + 1);
+      if (waterGlasses < maxWaterGlasses) setWaterGlasses(waterGlasses + 1);
     } else if (quickLogType === 'workout') {
       setExercises([{ id: Date.now().toString(), name: 'Quick Interval Session', durationMin: 20, caloriesBurned: 160 }, ...exercises]);
     }
@@ -169,7 +207,7 @@ export default function FitnessDashboard() {
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 pb-4 border-b border-zinc-800">
         <div>
           <h1 className="text-xl md:text-2xl font-black tracking-tight text-zinc-50 flex items-center gap-2">
-            ⚡ FitPulse <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">Active Tracker</span>
+            ⚡ IKY'S FITNESS <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">Active Tracker</span>
           </h1>
           <p className="text-xs text-zinc-400 mt-0.5">Track your daily intervals, monitor milestones, and log progress.</p>
         </div>
@@ -342,23 +380,23 @@ export default function FitnessDashboard() {
             {/* Hydration Tracker Card */}
             <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-semibold text-zinc-400">Water Intake (Saved)</span>
+                <span className="text-xs font-semibold text-zinc-400">Water Intake</span>
                 <span className="text-xs text-cyan-400 font-bold">{waterGlasses} / {maxWaterGlasses} glasses</span>
               </div>
               <div className="flex gap-1 py-1">
                 {Array.from({ length: maxWaterGlasses }).map((_, i) => (
                   <div 
                     key={i} 
-                    onClick={() => handleWaterChange(i < waterGlasses ? i : i + 1)}
+                    onClick={() => setWaterGlasses(i < waterGlasses ? i : i + 1)}
                     className={`flex-1 h-6 rounded-md cursor-pointer transition ${i < waterGlasses ? 'bg-cyan-500 shadow-sm' : 'bg-zinc-950 border border-zinc-800'}`}
-                    title={`Glass ${i + 1}`}
+                    title={`Glass ${i + 1} (Click to toggle)`}
                   ></div>
                 ))}
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-zinc-800/80">
-                <span className="text-xs text-zinc-500">~{waterGlasses * 250} ml saved</span>
+                <span className="text-xs text-zinc-500">~{waterGlasses * 250} ml logged</span>
                 <button 
-                  onClick={() => handleWaterChange(Math.max(0, waterGlasses - 1))}
+                  onClick={() => setWaterGlasses(Math.max(0, waterGlasses - 1))}
                   className="text-xs text-zinc-400 hover:text-zinc-200 cursor-pointer"
                 >
                   Reset / -1
@@ -671,46 +709,47 @@ export default function FitnessDashboard() {
                 type="submit"
                 className="w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer shadow-sm"
               >
-                Publish Entry
+                Publish Journal Entry
               </button>
             </form>
           </div>
 
-          {/* Entries Stream */}
-          <div className="space-y-4">
-            {journalEntries.length === 0 ? (
-              <div className="text-center py-12 border border-dashed border-zinc-800 rounded-2xl text-zinc-500 text-xs">
-                No journal entries published yet. Share your journey!
-              </div>
-            ) : (
-              journalEntries.map((entry) => (
-                <div key={entry.id} className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-3">
-                  <div className="flex justify-between items-baseline">
-                    <h3 className="font-bold text-base text-zinc-100">{entry.title}</h3>
-                    <span className="text-xs text-zinc-500">{entry.date}</span>
-                  </div>
-                  {entry.milestone && (
-                    <div className="inline-block bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold px-3 py-1 rounded-full">
-                      🏆 {entry.milestone}
-                    </div>
-                  )}
-                  <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">{entry.content}</p>
-                  {entry.imageUrl && (
-                    <div className="mt-3 overflow-hidden rounded-xl border border-zinc-800 max-h-64">
-                      <img src={entry.imageUrl} alt={entry.title} className="w-full h-full object-cover" />
-                    </div>
-                  )}
-                  <div className="pt-3 border-t border-zinc-800/80 flex justify-end">
-                    <button
-                      onClick={() => setJournalEntries(journalEntries.filter(item => item.id !== entry.id))}
-                      className="text-xs text-rose-400 hover:text-rose-300 transition cursor-pointer"
-                    >
-                      Delete Entry
-                    </button>
-                  </div>
+          {/* Journal Entries List */}
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
+            <h3 className="text-zinc-100 font-bold text-sm">Past Reflections</h3>
+            <div className="space-y-4">
+              {journalEntries.length === 0 ? (
+                <div className="text-center py-8 border border-dashed border-zinc-800 rounded-xl text-zinc-500 text-xs">
+                  No journal entries published yet.
                 </div>
-              ))
-            )}
+              ) : (
+                journalEntries.map((entry) => (
+                  <div key={entry.id} className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl space-y-2">
+                    <div className="flex justify-between items-baseline">
+                      <h4 className="font-bold text-sm text-zinc-100">{entry.title}</h4>
+                      <span className="text-xs text-zinc-500">{entry.date}</span>
+                    </div>
+                    {entry.milestone && (
+                      <span className="inline-block text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                        {entry.milestone}
+                      </span>
+                    )}
+                    <p className="text-xs text-zinc-300 whitespace-pre-wrap">{entry.content}</p>
+                    {entry.imageUrl && (
+                      <img src={entry.imageUrl} alt={entry.title} className="rounded-lg max-h-48 object-cover w-full mt-2" />
+                    )}
+                    <div className="flex justify-end pt-2 border-t border-zinc-900">
+                      <button
+                        onClick={() => setJournalEntries(journalEntries.filter(item => item.id !== entry.id))}
+                        className="text-xs text-rose-400 hover:text-rose-300 transition cursor-pointer"
+                      >
+                        Delete Entry
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
