@@ -30,6 +30,14 @@ export default function FitnessApp() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Pro & Paywall States
+  const [isPremium, setIsPremium] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  // Freemium AI Weekly Tracking & Report States
+  const [aiReport, setAiReport] = useState(null);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
   // Exercise Form State
   const [exerciseQuery, setExerciseQuery] = useState('');
   const [filteredExercises, setFilteredExercises] = useState([]);
@@ -49,6 +57,29 @@ export default function FitnessApp() {
   useEffect(() => {
     localStorage.setItem('fit_ke_log', JSON.stringify(foodLog));
   }, [foodLog]);
+
+  useEffect(() => {
+    const savedPremium = localStorage.getItem('fit_ke_is_premium');
+    if (savedPremium === 'true') {
+      setIsPremium(true);
+    }
+  }, []);
+
+  const handleAdvancedFeatureClick = (featureName) => {
+    if (!isPremium) {
+      setShowUpgradeModal(true);
+    } else {
+      alert(`Access granted to ${featureName}!`);
+    }
+  };
+
+  const handleGenerateAiReport = () => {
+    setIsGeneratingAi(true);
+    setTimeout(() => {
+      setAiReport("Great consistency on your water intake and home cardio routines this week! To support your target goals faster, consider balancing your daily ugali and sukuma wiki with slightly higher protein portions.");
+      setIsGeneratingAi(false);
+    }, 1500);
+  };
 
   // Handle exercise search autocomplete
   const handleExerciseSearch = (e) => {
@@ -106,7 +137,17 @@ export default function FitnessApp() {
       <header className="bg-emerald-700 text-white shadow-md">
         <div className="max-w-md mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-xl font-bold tracking-tight">FitKe Tracker</h1>
-          <span className="text-xs bg-emerald-800 px-2.5 py-1 rounded-full font-medium">Home Routine Active</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs bg-emerald-800 px-2.5 py-1 rounded-full font-medium">Home Routine</span>
+            {!isPremium && (
+              <button
+                onClick={() => setShowUpgradeModal(true)}
+                className="text-xs bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold px-2.5 py-1 rounded-full transition shadow-sm"
+              >
+                🔒 Go Pro
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -178,6 +219,53 @@ export default function FitnessApp() {
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* Freemium AI Weekly Tracking & Report Card */}
+            <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-slate-100 rounded-2xl p-5 shadow-sm border border-emerald-500/30 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="bg-emerald-500/10 text-emerald-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-emerald-500/20">
+                  ✨ AI Coach Free Preview
+                </span>
+                <span className="text-[11px] text-slate-400">Weekly Insights</span>
+              </div>
+
+              <h3 className="text-sm font-bold text-slate-200">Your Weekly Habit Breakdown</h3>
+              
+              {aiReport ? (
+                <p className="text-xs text-slate-300 bg-slate-900 p-3 rounded-xl border border-slate-800 leading-relaxed">
+                  {aiReport}
+                </p>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  Generate an AI-powered analysis of your recent food logs, water tracking, and workout consistency.
+                </p>
+              )}
+
+              <button
+                onClick={handleGenerateAiReport}
+                disabled={isGeneratingAi}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs transition disabled:opacity-50 cursor-pointer shadow-md"
+              >
+                {isGeneratingAi ? "Analyzing your week..." : "Generate Free AI Weekly Report"}
+              </button>
+            </div>
+
+            {/* Pro Feature Teaser Card */}
+            <div className="bg-white rounded-2xl shadow-sm p-5 border border-slate-100 space-y-3">
+              <div className="flex justify-between items-center">
+                <h3 className="text-sm font-semibold text-slate-800">Advanced Pro Tools</h3>
+                <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-md">Locked</span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Unlock custom meal-by-meal macro splits and weekly data exports.
+              </p>
+              <button
+                onClick={() => handleAdvancedFeatureClick('Custom Meal Macro Splits')}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded-xl text-xs transition"
+              >
+                Access Pro Settings →
+              </button>
             </div>
           </>
         ) : (
@@ -269,6 +357,48 @@ export default function FitnessApp() {
           </div>
         )}
       </main>
+
+      {/* --- UPGRADE MODAL --- */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-emerald-500/40 rounded-3xl p-6 md:p-8 max-w-md w-full space-y-6 shadow-2xl relative">
+            <div className="text-center space-y-2">
+              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold px-3 py-1 rounded-full">
+                🔒 Fit KE Pro
+              </span>
+              <h3 className="text-xl font-extrabold text-slate-900">Unlock Advanced Customization</h3>
+              <p className="text-xs text-slate-500">
+                Get custom meal-by-meal macro splits, weekly progress exports, and automated scaling templates.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-700 font-medium">Pro Lifetime Access</span>
+                <span className="text-emerald-600 font-bold">Ksh 499</span>
+              </div>
+              <p className="text-[11px] text-slate-400">Instant activation via M-Pesa checkout.</p>
+            </div>
+
+            <div className="space-y-3">
+              <a
+                href="https://paystack.com/pay/your-payment-link"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full block text-center bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-extrabold py-3 rounded-xl text-sm transition shadow-lg shadow-emerald-600/20"
+              >
+                Pay Ksh 499 via M-Pesa / Card →
+              </a>
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold py-2.5 rounded-xl text-xs transition cursor-pointer"
+              >
+                Maybe Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
