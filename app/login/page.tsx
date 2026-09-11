@@ -2,7 +2,9 @@
 
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "../../lib/supabase/client";
 
+type Mode = "signup" | "login";
 type Gender = "male" | "female";
 type ActivityLevel = "sedentary" | "light" | "moderate" | "active";
 type GoalType = "lose" | "maintain" | "gain";
@@ -22,10 +24,16 @@ const GOAL_ADJUSTMENTS: Record<GoalType, number> = {
 
 export default function LoginPage() {
   const router = useRouter();
+  const [mode, setMode] = useState<Mode>("signup");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // Auth fields
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   // Profile
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [age, setAge] = useState<number>(25);
   const [gender, setGender] = useState<Gender>("female");
   const [heightCm, setHeightCm] = useState<number>(165);
@@ -38,9 +46,7 @@ export default function LoginPage() {
   const [targetDate, setTargetDate] = useState<string>("2026-12-31");
 
   const [macrosTouched, setMacrosTouched] = useState(false);
-  const [error, setError] = useState("");
 
-  // Suggested daily calories via Mifflin-St Jeor, adjustable by activity + goal
   const suggestedCalories = useMemo(() => {
     const bmr =
       gender === "male"
@@ -62,7 +68,6 @@ export default function LoginPage() {
   const [protein, setProtein] = useState<number>(suggestedMacros.protein);
   const [fat, setFat] = useState<number>(suggestedMacros.fat);
 
-  // Keep macro fields synced to the suggestion until the user edits them manually
   React.useEffect(() => {
     if (!macrosTouched) {
       setCalories(suggestedCalories);
@@ -73,50 +78,109 @@ export default function LoginPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [suggestedCalories, suggestedMacros, macrosTouched]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setError("");
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
 
-    if (!name.trim()) {
-      setError("Please enter your name.");
-      return;
+    if (!name.trim()) return setError("Please enter your name.");
+    if (!email.trim()) return setError("Please enter your email.");
+    if (password.length < 6) return setError("Password must be at least 6 characters.");
+    if (!heightCm || !weightKg || !age) return setError("Please fill in your age, height, and current weight.");
+
+    setLoading(true);
+
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+    });
+
+    if (signUpError) {
+      setLoading(false);
+      return setError(signUpError.message);
     }
-    if (!heightCm || !weightKg || !age) {
-      setError("Please fill in your age, height, and current weight.");
-      return;
+
+    const userId = data.user?.id;
+    if (!userId) {
+      setLoading(false);
+      return setError("Account created, but no active session yet. Try logging in.");
     }
 
-    const profile = {
-      name: name.trim(),
-      email: email.trim() || undefined,
-      age,
-      gender,
-      heightCm,
-      weightKg,
-      activityLevel,
-      goalType,
-      createdAt: new Date().toISOString(),
-    };
+    // Update the profile row (auto-created by the DB trigger on signup)
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        name: name.trim(),
+        email: email.trim(),
+        age,
+        gender,
+        height_cm: heightCm,
+        weight_kg: weightKg,
+        activity_level: activityLevel,
+        goal_type: goalType,
+      })
+      .eq("id", userId);
 
-    const goals = { calories, carbs, protein, fat };
+    if (profileError) {
+      setLoading(false);
+      return setError(profileError.message);
+    }
 
-    localStorage.setItem("fit_ke_profile", JSON.stringify(profile));
-    localStorage.setItem("fit_ke_goals", JSON.stringify(goals));
-    localStorage.setItem("fit_ke_goal_weight", JSON.stringify(targetWeight));
-    localStorage.setItem("fit_ke_saved_goal_weight", JSON.stringify(targetWeight));
-    localStorage.setItem("fit_ke_goal_date", JSON.stringify(targetDate));
-    localStorage.setItem("fit_ke_saved_goal_date", JSON.stringify(targetDate));
+    // Save goals
+    const { error: goalsError } = await supabase.from("goals").upsert({
+      user_id: userId,
+      calories,
+      carbs,
+      protein,
+      fat,
+      target_weight_kg: targetWeight,
+      target_date: targetDate,
+    });
 
-    // Seed the weight history with their starting weight
-    const initialWeightLog = [
-      {
-        id: Date.now(),
-        date: new Date().toISOString().split("T")[0],
-        weightKg,
-      },
-    ];
-    localStorage.setItem("fit_ke_weights", JSON.stringify(initialWeightLog));
+    if (goalsError) {
+      setLoading(false);
+      return setError(goalsError.message);
+    }
+
+    // Seed weight history with starting weight
+    const { error: weightError } = await supabase.from("weight_logs").insert({
+      user_id: userId,
+      date: new Date().toISOString().split("T")[0],
+      weight_kg: weightKg,
+    });
+
+    if (weightError) {
+      setLoading(false);
+      return setError(weightError.message);
+    }
+
+    setLoading(false);
+    router.push("/");
+    router.refresh();
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    setLoading(false);
+
+    if (signInError) {
+      return setError(signInError.message);
+    }
 
     router.push("/");
+    router.refresh();
   };
 
   const inputClass =
@@ -128,220 +192,304 @@ export default function LoginPage() {
       <div className="w-full max-w-xl bg-zinc-900/80 border border-emerald-500/30 rounded-3xl p-8 md:p-10 space-y-6 shadow-2xl shadow-emerald-950/20 my-10">
         <div className="space-y-2 text-center">
           <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold px-3.5 py-1.5 rounded-full shadow-sm">
-      <p className="text-xl font-bold text-emerald-500 mb-2">
-  Welcome to FitKE
-</p>
+            <div className="text-center max-w-md mx-auto px-4 py-8">
+  <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-tight">
+    Welcome to FitKE
+    <span className="block my-3">
+      <span className="inline-block bg-emerald-500 text-slate-950 px-5 py-1.5 rounded-xl shadow-lg text-2xl">
+        Kenya's #1
+      </span>
+    </span>
+    Local Nutrition & Fitness Tracker
+  </h1>
+  <p className="mt-4 text-base text-slate-300 font-medium">
+    Real meals & Real goals
+  </p>
+</div>
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-zinc-100 leading-tight">
-            Build your{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
-              Fitness Profile
-            </span>
+            {mode === "signup" ? (
+              <>
+                Build your{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
+                  Fitness Profile
+                </span>
+              </>
+            ) : (
+              <>
+                Welcome{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
+                  Back
+                </span>
+              </>
+            )}
           </h1>
           <p className="text-zinc-400 text-sm leading-relaxed">
-            Tell us about yourself and your goal — we'll calculate realistic daily targets you can fine-tune anytime.
+            {mode === "signup"
+              ? "Tell us about yourself and your goal — we'll suggest daily targets you can fine-tune anytime."
+              : "Log in to pick up where you left off."}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* About You */}
-          <section className="space-y-4">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-300">About You</h2>
+        <div className="flex bg-zinc-950 border border-zinc-800 p-1 rounded-xl">
+          <button
+            type="button"
+            onClick={() => switchMode("signup")}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
+              mode === "signup" ? "bg-emerald-500 text-zinc-950 shadow" : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            Sign Up
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMode("login")}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
+              mode === "login" ? "bg-emerald-500 text-zinc-950 shadow" : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            Log In
+          </button>
+        </div>
+
+        {mode === "login" ? (
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className={labelClass}>Name</label>
+              <label className={labelClass}>Email</label>
               <input
-                type="text"
-                placeholder="e.g. Wanjiru"
-                value={name}
-                onChange={(e) => { setName(e.target.value); if (error) setError(""); }}
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); if (error) setError(""); }}
                 className={inputClass}
                 autoFocus
               />
             </div>
             <div>
-              <label className={labelClass}>Email <span className="text-zinc-500">(optional)</span></label>
+              <label className={labelClass}>Password</label>
               <input
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="password"
+                placeholder="Your password"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); if (error) setError(""); }}
                 className={inputClass}
               />
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+
+            {error && (
+              <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 px-3 py-2 rounded-lg">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-60 text-zinc-950 font-extrabold px-8 py-3.5 rounded-xl text-sm transition shadow-lg shadow-emerald-500/25 cursor-pointer"
+            >
+              {loading ? "Logging in..." : "Log In →"}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleSignup} className="space-y-6">
+            <section className="space-y-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-300">About You</h2>
               <div>
-                <label className={labelClass}>Age</label>
+                <label className={labelClass}>Name</label>
                 <input
-                  type="number"
-                  min="10"
-                  max="100"
-                  value={age}
-                  onChange={(e) => setAge(Number(e.target.value))}
+                  type="text"
+                  placeholder="e.g. Wanjiru"
+                  value={name}
+                  onChange={(e) => { setName(e.target.value); if (error) setError(""); }}
+                  className={inputClass}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Email</label>
+                <input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); if (error) setError(""); }}
                   className={inputClass}
                 />
               </div>
               <div>
-                <label className={labelClass}>Gender</label>
+                <label className={labelClass}>Password</label>
+                <input
+                  type="password"
+                  placeholder="At least 6 characters"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); if (error) setError(""); }}
+                  className={inputClass}
+                />
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <label className={labelClass}>Age</label>
+                  <input
+                    type="number"
+                    min="10"
+                    max="100"
+                    value={age}
+                    onChange={(e) => setAge(Number(e.target.value))}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Gender</label>
+                  <select value={gender} onChange={(e) => setGender(e.target.value as Gender)} className={inputClass}>
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Height (cm)</label>
+                  <input
+                    type="number"
+                    min="100"
+                    max="230"
+                    value={heightCm}
+                    onChange={(e) => setHeightCm(Number(e.target.value))}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Weight (kg)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="30"
+                    max="250"
+                    value={weightKg}
+                    onChange={(e) => setWeightKg(Number(e.target.value))}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Activity Level</label>
                 <select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value as Gender)}
+                  value={activityLevel}
+                  onChange={(e) => setActivityLevel(e.target.value as ActivityLevel)}
                   className={inputClass}
                 >
-                  <option value="female">Female</option>
-                  <option value="male">Male</option>
+                  <option value="sedentary">Sedentary (little to no exercise)</option>
+                  <option value="light">Light (exercise 1-3 days/week)</option>
+                  <option value="moderate">Moderate (exercise 3-5 days/week)</option>
+                  <option value="active">Active (exercise 6-7 days/week)</option>
                 </select>
               </div>
-              <div>
-                <label className={labelClass}>Height (cm)</label>
-                <input
-                  type="number"
-                  min="100"
-                  max="230"
-                  value={heightCm}
-                  onChange={(e) => setHeightCm(Number(e.target.value))}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Weight (kg)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="30"
-                  max="250"
-                  value={weightKg}
-                  onChange={(e) => setWeightKg(Number(e.target.value))}
-                  className={inputClass}
-                />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>Activity Level</label>
-              <select
-                value={activityLevel}
-                onChange={(e) => setActivityLevel(e.target.value as ActivityLevel)}
-                className={inputClass}
-              >
-                <option value="sedentary">Sedentary (little to no exercise)</option>
-                <option value="light">Light (exercise 1-3 days/week)</option>
-                <option value="moderate">Moderate (exercise 3-5 days/week)</option>
-                <option value="active">Active (exercise 6-7 days/week)</option>
-              </select>
-            </div>
-          </section>
+            </section>
 
-          {/* Your Goal */}
-          <section className="space-y-4">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-300">Your Goal</h2>
-            <div className="flex bg-zinc-950 border border-zinc-800 p-1 rounded-xl">
-              {(["lose", "maintain", "gain"] as GoalType[]).map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setGoalType(g)}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer capitalize ${
-                    goalType === g ? "bg-emerald-500 text-zinc-950 shadow" : "text-zinc-400 hover:text-zinc-200"
-                  }`}
-                >
-                  {g} weight
-                </button>
-              ))}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className={labelClass}>Target Weight (kg)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={targetWeight}
-                  onChange={(e) => setTargetWeight(Number(e.target.value))}
-                  className={inputClass}
-                />
+            <section className="space-y-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-300">Your Goal</h2>
+              <div className="flex bg-zinc-950 border border-zinc-800 p-1 rounded-xl">
+                {(["lose", "maintain", "gain"] as GoalType[]).map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGoalType(g)}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer capitalize ${
+                      goalType === g ? "bg-emerald-500 text-zinc-950 shadow" : "text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    {g} weight
+                  </button>
+                ))}
               </div>
-              <div>
-                <label className={labelClass}>Target Date</label>
-                <input
-                  type="date"
-                  value={targetDate}
-                  onChange={(e) => setTargetDate(e.target.value)}
-                  className={inputClass}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Target Weight (kg)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={targetWeight}
+                    onChange={(e) => setTargetWeight(Number(e.target.value))}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Target Date</label>
+                  <input
+                    type="date"
+                    value={targetDate}
+                    onChange={(e) => setTargetDate(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
 
-          {/* Suggested Daily Targets */}
-          <section className="space-y-3">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-300">
-                Suggested Daily Targets
-              </h2>
-              {macrosTouched && (
-                <button
-                  type="button"
-                  onClick={() => setMacrosTouched(false)}
-                  className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold"
-                >
-                  Reset to suggested
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-zinc-950 p-4 rounded-xl border border-zinc-800">
-              <div>
-                <label className="text-[11px] text-zinc-400 block mb-1">Calories</label>
-                <input
-                  type="number"
-                  value={calories}
-                  onChange={(e) => { setCalories(Number(e.target.value)); setMacrosTouched(true); }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
-                />
+            <section className="space-y-3">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-300">Suggested Daily Targets</h2>
+                {macrosTouched && (
+                  <button
+                    type="button"
+                    onClick={() => setMacrosTouched(false)}
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold"
+                  >
+                    Reset to suggested
+                  </button>
+                )}
               </div>
-              <div>
-                <label className="text-[11px] text-zinc-400 block mb-1">Carbs (g)</label>
-                <input
-                  type="number"
-                  value={carbs}
-                  onChange={(e) => { setCarbs(Number(e.target.value)); setMacrosTouched(true); }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
-                />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-zinc-950 p-4 rounded-xl border border-zinc-800">
+                <div>
+                  <label className="text-[11px] text-zinc-400 block mb-1">Calories</label>
+                  <input
+                    type="number"
+                    value={calories}
+                    onChange={(e) => { setCalories(Number(e.target.value)); setMacrosTouched(true); }}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-zinc-400 block mb-1">Carbs (g)</label>
+                  <input
+                    type="number"
+                    value={carbs}
+                    onChange={(e) => { setCarbs(Number(e.target.value)); setMacrosTouched(true); }}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-zinc-400 block mb-1">Protein (g)</label>
+                  <input
+                    type="number"
+                    value={protein}
+                    onChange={(e) => { setProtein(Number(e.target.value)); setMacrosTouched(true); }}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-zinc-400 block mb-1">Fat (g)</label>
+                  <input
+                    type="number"
+                    value={fat}
+                    onChange={(e) => { setFat(Number(e.target.value)); setMacrosTouched(true); }}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="text-[11px] text-zinc-400 block mb-1">Protein (g)</label>
-                <input
-                  type="number"
-                  value={protein}
-                  onChange={(e) => { setProtein(Number(e.target.value)); setMacrosTouched(true); }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] text-zinc-400 block mb-1">Fat (g)</label>
-                <input
-                  type="number"
-                  value={fat}
-                  onChange={(e) => { setFat(Number(e.target.value)); setMacrosTouched(true); }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
-            <p className="text-[11px] text-zinc-500">
-              Based on your details — you can fine-tune these anytime from the Nutrition tab.
-            </p>
-          </section>
+            </section>
 
-          {error && (
-            <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 px-3 py-2 rounded-lg">
-              {error}
-            </p>
-          )}
+            {error && (
+              <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 px-3 py-2 rounded-lg">
+                {error}
+              </p>
+            )}
 
-          <button
-            type="submit"
-            className="w-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-zinc-950 font-extrabold px-8 py-3.5 rounded-xl text-sm transition shadow-lg shadow-emerald-500/25 cursor-pointer"
-          >
-            Start Your Journey →
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-60 text-zinc-950 font-extrabold px-8 py-3.5 rounded-xl text-sm transition shadow-lg shadow-emerald-500/25 cursor-pointer"
+            >
+              {loading ? "Creating account..." : "Start My Journey →"}
+            </button>
+          </form>
+        )}
       </div>
     </main>
   );
