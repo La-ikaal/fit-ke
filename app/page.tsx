@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import foodJson from "../data/food.json";
 
 interface FoodItem {
@@ -48,6 +49,11 @@ interface JournalEntry {
   imageUrl?: string;
 }
 
+interface UserProfile {
+  name: string;
+  email?: string;
+}
+
 const COMMON_EXERCISES = [
   { name: "Jump rope intervals", ratePerMin: 10 },
   { name: "Brisk Walking", ratePerMin: 4 },
@@ -57,26 +63,28 @@ const COMMON_EXERCISES = [
   { name: "Lower body strength", ratePerMin: 5 },
 ];
 
-const foodsData: FoodItem[] = Array.isArray(foodJson) 
-  ? foodJson 
+const foodsData: FoodItem[] = Array.isArray(foodJson)
+  ? foodJson
   : (foodJson as any).default || [];
 
 const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner", "Snacks"] as const;
 
 export default function Home() {
+  const router = useRouter();
   const [isStarted, setIsStarted] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState<"nutrition" | "fitness" | "weight" | "blog">("nutrition");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMeal, setSelectedMeal] = useState<typeof MEAL_TYPES[number]>("Breakfast");
   const [isEditingGoals, setIsEditingGoals] = useState(false);
-  
+
   // States
   const [log, setLog] = useState<LoggedItem[]>([]);
   const [goals, setGoals] = useState<Goals>({ calories: 2000, carbs: 220, protein: 130, fat: 65 });
   const [waterMl, setWaterMl] = useState(0);
   const [waterGoal, setWaterGoal] = useState(2500);
-  
+
   // Exercise States
   const [exercises, setExercises] = useState<ExerciseItem[]>([]);
   const [exerciseName, setExerciseName] = useState("");
@@ -89,7 +97,6 @@ export default function Home() {
   const [currentWeightInput, setCurrentWeightInput] = useState("");
   const [editingWeightId, setEditingWeightId] = useState<number | null>(null);
   const [editingWeightValue, setEditingWeightValue] = useState("");
-  
   const [goalWeight, setGoalWeight] = useState<number>(65);
   const [goalDate, setGoalDate] = useState("2026-12-31");
   const [savedGoalWeight, setSavedGoalWeight] = useState<number>(65);
@@ -105,6 +112,7 @@ export default function Home() {
   // Load from localStorage on mount
   useEffect(() => {
     setMounted(true);
+
     const loadStorage = (key: string, setter: Function) => {
       const saved = localStorage.getItem(key);
       if (saved) {
@@ -127,6 +135,16 @@ export default function Home() {
     loadStorage("fit_ke_goal_date", setGoalDate);
     loadStorage("fit_ke_saved_goal_date", setSavedGoalDate);
     loadStorage("fit_ke_journal", setJournalEntries);
+
+    const savedProfile = localStorage.getItem("fit_ke_profile");
+    if (savedProfile) {
+      try {
+        setProfile(JSON.parse(savedProfile));
+        setIsStarted(true);
+      } catch (e) {
+        console.error("Failed to parse fit_ke_profile", e);
+      }
+    }
   }, []);
 
   // Save to localStorage
@@ -200,6 +218,7 @@ export default function Home() {
   const addExercise = (e: React.FormEvent) => {
     e.preventDefault();
     if (!exerciseName.trim()) return;
+
     const newEx: ExerciseItem = {
       id: Date.now(),
       name: exerciseName,
@@ -222,6 +241,7 @@ export default function Home() {
   const addWeightLog = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentWeightInput) return;
+
     const newLog: WeightLog = {
       id: Date.now(),
       date: new Date().toISOString().split('T')[0],
@@ -242,6 +262,7 @@ export default function Home() {
   const addJournalEntry = (e: React.FormEvent) => {
     e.preventDefault();
     if (!journalTitle.trim() || !journalContent.trim()) return;
+
     const newEntry: JournalEntry = {
       id: Date.now(),
       date: new Date().toLocaleDateString(),
@@ -257,10 +278,15 @@ export default function Home() {
     setJournalImageUrl("");
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("fit_ke_profile");
+    setProfile(null);
+    setIsStarted(false);
+  };
+
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 p-6 md:p-12 font-sans selection:bg-emerald-500 selection:text-zinc-950">
       <div className="max-w-4xl mx-auto space-y-8">
-        
         {!isStarted ? (
           /* PAGE 1: Landing View */
           <div className="bg-zinc-900/80 border border-emerald-500/30 rounded-3xl p-8 md:p-12 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center shadow-2xl shadow-emerald-950/20 my-auto">
@@ -272,12 +298,10 @@ export default function Home() {
                 <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-zinc-100 leading-tight">
                   Fit KE: Your Ultimate <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Kenyan-First</span> Nutrition & Fitness Tracker
                 </h1>
-                <p className="text-zinc-400 text-sm md:text-base leading-relaxed">
-                  Generic fitness apps don't know ugali, sukuma, or local meals. Track workouts, meals, and real life effortlessly.
-                </p>
+              
               </div>
-              <button 
-                onClick={() => setIsStarted(true)}
+              <button
+                onClick={() => router.push("/login")}
                 className="bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-zinc-950 font-extrabold px-8 py-3.5 rounded-xl text-sm transition shadow-lg shadow-emerald-500/25 cursor-pointer"
               >
                 Start Today →
@@ -310,15 +334,28 @@ export default function Home() {
                   <p className="text-sm md:text-base text-zinc-300 font-medium leading-relaxed mt-1">
                     Your ultimate Kenyan-first local nutrition and fitness tracking app.
                   </p>
+                  {profile?.name && (
+                    <p className="text-xs text-emerald-400 font-semibold mt-1">
+                      Welcome back, {profile.name} 👋
+                    </p>
+                  )}
                 </div>
-                {(log.length > 0 || waterMl > 0 || exercises.length > 0) && (
+                <div className="flex items-center gap-2">
+                  {(log.length > 0 || waterMl > 0 || exercises.length > 0) && (
+                    <button
+                      onClick={() => { setLog([]); setWaterMl(0); setExercises([]); localStorage.clear(); }}
+                      className="text-xs bg-zinc-900 hover:bg-rose-950/50 text-zinc-400 hover:text-rose-300 border border-zinc-800 hover:border-rose-900/50 px-3.5 py-1.5 rounded-lg transition cursor-pointer"
+                    >
+                      Reset Day
+                    </button>
+                  )}
                   <button
-                    onClick={() => { setLog([]); setWaterMl(0); setExercises([]); localStorage.clear(); }}
-                    className="text-xs bg-zinc-900 hover:bg-rose-950/50 text-zinc-400 hover:text-rose-300 border border-zinc-800 hover:border-rose-900/50 px-3.5 py-1.5 rounded-lg transition cursor-pointer"
+                    onClick={handleLogout}
+                    className="text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 px-3.5 py-1.5 rounded-lg transition cursor-pointer"
                   >
-                    Reset Day
+                    Log out
                   </button>
-                )}
+                </div>
               </div>
 
               {/* Navigation Bar */}
@@ -425,7 +462,6 @@ export default function Home() {
                         <div className="bg-emerald-400 h-full transition-all duration-300" style={{ width: `${getProgress(totalCalories, goals.calories)}%` }} />
                       </div>
                     </div>
-
                     <div className="bg-zinc-950/60 border border-zinc-800/80 p-3.5 rounded-xl space-y-2">
                       <div className="flex justify-between items-baseline text-xs">
                         <span className="font-semibold text-zinc-400">Carbs</span>
@@ -435,7 +471,6 @@ export default function Home() {
                         <div className="bg-amber-400 h-full transition-all duration-300" style={{ width: `${getProgress(totalCarbs, goals.carbs)}%` }} />
                       </div>
                     </div>
-
                     <div className="bg-zinc-950/60 border border-zinc-800/80 p-3.5 rounded-xl space-y-2">
                       <div className="flex justify-between items-baseline text-xs">
                         <span className="font-semibold text-zinc-400">Protein</span>
@@ -445,7 +480,6 @@ export default function Home() {
                         <div className="bg-sky-400 h-full transition-all duration-300" style={{ width: `${getProgress(totalProtein, goals.protein)}%` }} />
                       </div>
                     </div>
-
                     <div className="bg-zinc-950/60 border border-zinc-800/80 p-3.5 rounded-xl space-y-2">
                       <div className="flex justify-between items-baseline text-xs">
                         <span className="font-semibold text-zinc-400">Fat</span>
@@ -516,7 +550,6 @@ export default function Home() {
                         </button>
                       ))}
                     </div>
-
                     <div className="space-y-3 max-h-[420px] overflow-y-auto pr-2">
                       {log.filter(item => item.meal === selectedMeal).length === 0 ? (
                         <div className="text-center py-12 border border-dashed border-zinc-800 rounded-2xl text-zinc-500 text-xs">
@@ -550,7 +583,6 @@ export default function Home() {
             {activeTab === "fitness" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-bold text-zinc-200">Water & Exercise Tracking</h2>
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Water Card */}
                   <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
@@ -568,19 +600,19 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2 pt-2">
-                      <button 
+                      <button
                         onClick={() => setWaterMl(prev => prev + 250)}
                         className="bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow-sm"
                       >
                         + 250ml Glass
                       </button>
-                      <button 
+                      <button
                         onClick={() => setWaterMl(prev => prev + 500)}
                         className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer"
                       >
                         + 500ml Bottle
                       </button>
-                      <button 
+                      <button
                         onClick={() => setWaterMl(0)}
                         className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 font-medium px-3 py-2 rounded-xl text-xs transition ml-auto cursor-pointer"
                       >
@@ -595,8 +627,8 @@ export default function Home() {
                     <form onSubmit={addExercise} className="space-y-3 relative">
                       <div className="relative">
                         <label className="text-xs text-zinc-400 block mb-1">Workout Name</label>
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           placeholder="Type e.g. Jump rope, Run, Walk..."
                           value={exerciseName}
                           onChange={(e) => handleExerciseNameChange(e.target.value)}
@@ -619,12 +651,11 @@ export default function Home() {
                           </div>
                         )}
                       </div>
-
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="text-xs text-zinc-400 block mb-1">Duration (min)</label>
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             min="1"
                             value={exerciseDuration}
                             onChange={(e) => handleDurationChange(Number(e.target.value))}
@@ -633,16 +664,15 @@ export default function Home() {
                         </div>
                         <div>
                           <label className="text-xs text-zinc-400 block mb-1">Est. Calories Burned</label>
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             value={exerciseCalories}
                             onChange={(e) => setExerciseCalories(Number(e.target.value))}
                             className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500 font-bold text-emerald-400"
                           />
                         </div>
                       </div>
-
-                      <button 
+                      <button
                         type="submit"
                         className="w-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-zinc-950 font-bold py-2.5 rounded-xl text-xs transition shadow-md cursor-pointer mt-1"
                       >
@@ -685,7 +715,6 @@ export default function Home() {
             {activeTab === "weight" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-bold text-zinc-200">Weight & Goal Management</h2>
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Goal Configuration */}
                   <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
@@ -693,8 +722,8 @@ export default function Home() {
                     <form onSubmit={saveGoalMilestone} className="space-y-3">
                       <div>
                         <label className="text-xs text-zinc-400 block mb-1">Target Weight (kg)</label>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           value={goalWeight}
                           onChange={(e) => setGoalWeight(Number(e.target.value))}
                           className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
@@ -702,14 +731,14 @@ export default function Home() {
                       </div>
                       <div>
                         <label className="text-xs text-zinc-400 block mb-1">Target Date</label>
-                        <input 
-                          type="date" 
+                        <input
+                          type="date"
                           value={goalDate}
                           onChange={(e) => setGoalDate(e.target.value)}
                           className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
-                      <button 
+                      <button
                         type="submit"
                         className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
                       >
@@ -727,8 +756,8 @@ export default function Home() {
                     <form onSubmit={addWeightLog} className="space-y-4">
                       <div>
                         <label className="text-xs text-zinc-400 block mb-1">Weight (kg)</label>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           step="0.1"
                           placeholder="e.g. 68.5"
                           value={currentWeightInput}
@@ -736,7 +765,7 @@ export default function Home() {
                           className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
-                      <button 
+                      <button
                         type="submit"
                         className="w-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-zinc-950 font-bold py-2.5 rounded-xl text-xs transition shadow-md cursor-pointer"
                       >
@@ -758,11 +787,10 @@ export default function Home() {
                       weightLogs.map((w) => (
                         <div key={w.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 flex justify-between items-center">
                           <span className="text-xs text-zinc-400">{w.date}</span>
-                          
                           {editingWeightId === w.id ? (
                             <div className="flex items-center gap-2">
-                              <input 
-                                type="number" 
+                              <input
+                                type="number"
                                 step="0.1"
                                 value={editingWeightValue}
                                 onChange={(e) => setEditingWeightValue(e.target.value)}
@@ -774,13 +802,13 @@ export default function Home() {
                           ) : (
                             <div className="flex items-center gap-3">
                               <span className="font-bold text-emerald-400 text-sm">{w.weightKg} kg</span>
-                              <button 
+                              <button
                                 onClick={() => { setEditingWeightId(w.id); setEditingWeightValue(String(w.weightKg)); }}
                                 className="text-[11px] text-zinc-400 hover:text-zinc-200 underline cursor-pointer"
                               >
                                 Edit
                               </button>
-                              <button 
+                              <button
                                 onClick={() => setWeightLogs(weightLogs.filter(item => item.id !== w.id))}
                                 className="text-[11px] text-rose-400 hover:text-rose-300 cursor-pointer"
                               >
@@ -800,14 +828,13 @@ export default function Home() {
             {activeTab === "blog" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-bold text-zinc-200">Blog & Personal Journal</h2>
-                
                 <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
                   <h3 className="text-zinc-100 font-bold">✍️ Share Milestones & Reflections</h3>
                   <form onSubmit={addJournalEntry} className="space-y-3">
                     <div>
                       <label className="text-xs text-zinc-400 block mb-1">Title</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         placeholder="e.g. Completed my first week strong!"
                         value={journalTitle}
                         onChange={(e) => setJournalTitle(e.target.value)}
@@ -816,8 +843,8 @@ export default function Home() {
                     </div>
                     <div>
                       <label className="text-xs text-zinc-400 block mb-1">Milestone Tag (optional)</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         placeholder="e.g. 5kg down / Hit water goal 7 days straight"
                         value={journalMilestone}
                         onChange={(e) => setJournalMilestone(e.target.value)}
@@ -826,8 +853,8 @@ export default function Home() {
                     </div>
                     <div>
                       <label className="text-xs text-zinc-400 block mb-1">Photo URL (optional)</label>
-                      <input 
-                        type="url" 
+                      <input
+                        type="url"
                         placeholder="https://example.com/image.jpg"
                         value={journalImageUrl}
                         onChange={(e) => setJournalImageUrl(e.target.value)}
@@ -836,15 +863,15 @@ export default function Home() {
                     </div>
                     <div>
                       <label className="text-xs text-zinc-400 block mb-1">Comments / Reflections</label>
-                      <textarea 
+                      <textarea
                         rows={4}
-                        placeholder="Share your thoughts, feelings, or how your fitness journey is going..." 
+                        placeholder="Share your thoughts, feelings, or how your fitness journey is going..."
                         value={journalContent}
                         onChange={(e) => setJournalContent(e.target.value)}
                         className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500 resize-none"
                       />
                     </div>
-                    <button 
+                    <button
                       type="submit"
                       className="bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-zinc-950 font-bold px-6 py-2.5 rounded-xl text-xs transition shadow-md cursor-pointer"
                     >
@@ -890,7 +917,6 @@ export default function Home() {
             )}
           </>
         )}
-
       </div>
     </main>
   );
