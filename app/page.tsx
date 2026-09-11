@@ -292,7 +292,7 @@ export default function Home() {
           <div className="bg-zinc-900/80 border border-emerald-500/30 rounded-3xl p-8 md:p-12 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center shadow-2xl shadow-emerald-950/20 my-auto">
             <div className="space-y-6">
               <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold px-3.5 py-1.5 rounded-full shadow-sm">
-                <span>✨ 100% Free</span>
+                <span>✨ Start For Free</span>
               </div>
               <div className="space-y-3">
                 <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-zinc-100 leading-tight">
