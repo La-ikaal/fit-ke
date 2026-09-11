@@ -128,7 +128,9 @@ export default function LoginPage() {
       <div className="w-full max-w-xl bg-zinc-900/80 border border-emerald-500/30 rounded-3xl p-8 md:p-10 space-y-6 shadow-2xl shadow-emerald-950/20 my-10">
         <div className="space-y-2 text-center">
           <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold px-3.5 py-1.5 rounded-full shadow-sm">
-            <span>✨ 100% Free</span>
+      <p className="text-xl font-bold text-emerald-500 mb-2">
+  Welcome to FitKE
+</p>
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-zinc-100 leading-tight">
             Build your{" "}
@@ -137,7 +139,7 @@ export default function LoginPage() {
             </span>
           </h1>
           <p className="text-zinc-400 text-sm leading-relaxed">
-            Tell us about yourself and your goal — we'll suggest daily targets you can fine-tune anytime. Everything stays on this device.
+            Tell us about yourself and your goal — we'll calculate realistic daily targets you can fine-tune anytime.
           </p>
         </div>
 
@@ -337,7 +339,7 @@ export default function LoginPage() {
             type="submit"
             className="w-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-zinc-950 font-extrabold px-8 py-3.5 rounded-xl text-sm transition shadow-lg shadow-emerald-500/25 cursor-pointer"
           >
-            Start My Journey →
+            Start Your Journey →
           </button>
         </form>
       </div>
