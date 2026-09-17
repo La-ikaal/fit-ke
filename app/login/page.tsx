@@ -191,43 +191,16 @@ export default function LoginPage() {
     <main className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-6 font-sans selection:bg-emerald-500 selection:text-zinc-950">
       <div className="w-full max-w-xl bg-zinc-900/80 border border-emerald-500/30 rounded-3xl p-8 md:p-10 space-y-6 shadow-2xl shadow-emerald-950/20 my-10">
         <div className="space-y-2 text-center">
-          <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold px-3.5 py-1.5 rounded-full shadow-sm">
-            <div className="text-center max-w-md mx-auto px-4 py-8">
-  <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-tight">
-    Welcome to FitKE
-    <span className="block my-3">
-      <span className="inline-block bg-emerald-500 text-slate-950 px-5 py-1.5 rounded-xl shadow-lg text-2xl">
-        Kenya's #1
-      </span>
-    </span>
-    Local Nutrition & Fitness Tracker
-  </h1>
-  <p className="mt-4 text-base text-slate-300 font-medium">
-    Real meals & Real goals
-  </p>
-</div>
-          </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-zinc-100 leading-tight">
-            {mode === "signup" ? (
-              <>
-                Build your{" "}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
-                  Fitness Profile
-                </span>
-              </>
-            ) : (
-              <>
-                Welcome{" "}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
-                  Back
-                </span>
-              </>
-            )}
+          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
+            FIT KE
           </h1>
+          <h2 className="text-xl md:text-2xl font-bold tracking-tight text-zinc-100 leading-tight">
+            {mode === "signup" ? "Sign Up" : "Log In"}
+          </h2>
           <p className="text-zinc-400 text-sm leading-relaxed">
             {mode === "signup"
-              ? "Tell us about yourself and your goal — we'll suggest daily targets you can fine-tune anytime."
-              : "Log in to pick up where you left off."}
+              ? "Two minutes to your personalized calorie and macro targets."
+              : "Your goals are exactly where you left them."}
           </p>
         </div>
 

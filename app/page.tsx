@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "../lib/supabase/client";
 import foodJson from "../data/food.json";
 
 interface FoodItem {
@@ -35,7 +36,7 @@ interface ExerciseItem {
 }
 
 interface WeightLog {
-  id: number;
+  id: number | string;
   date: string;
   weightKg: number;
 }
@@ -73,6 +74,7 @@ export default function Home() {
   const router = useRouter();
   const [isStarted, setIsStarted] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState<"nutrition" | "fitness" | "weight" | "blog">("nutrition");
   const [searchQuery, setSearchQuery] = useState("");
@@ -95,7 +97,7 @@ export default function Home() {
   // Weight States
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [currentWeightInput, setCurrentWeightInput] = useState("");
-  const [editingWeightId, setEditingWeightId] = useState<number | null>(null);
+  const [editingWeightId, setEditingWeightId] = useState<number | string | null>(null);
   const [editingWeightValue, setEditingWeightValue] = useState("");
   const [goalWeight, setGoalWeight] = useState<number>(65);
   const [goalDate, setGoalDate] = useState("2026-12-31");
@@ -109,7 +111,7 @@ export default function Home() {
   const [journalContent, setJournalContent] = useState("");
   const [journalImageUrl, setJournalImageUrl] = useState("");
 
-  // Load from localStorage on mount
+  // Load session + data on mount
   useEffect(() => {
     setMounted(true);
 
@@ -124,44 +126,84 @@ export default function Home() {
       }
     };
 
+    // These stay local for now
     loadStorage("fit_ke_log", setLog);
-    loadStorage("fit_ke_goals", setGoals);
     loadStorage("fit_ke_water", setWaterMl);
     loadStorage("fit_ke_water_goal", setWaterGoal);
     loadStorage("fit_ke_exercises", setExercises);
-    loadStorage("fit_ke_weights", setWeightLogs);
-    loadStorage("fit_ke_goal_weight", setGoalWeight);
-    loadStorage("fit_ke_saved_goal_weight", setSavedGoalWeight);
-    loadStorage("fit_ke_goal_date", setGoalDate);
-    loadStorage("fit_ke_saved_goal_date", setSavedGoalDate);
     loadStorage("fit_ke_journal", setJournalEntries);
 
-    const savedProfile = localStorage.getItem("fit_ke_profile");
-    if (savedProfile) {
-      try {
-        setProfile(JSON.parse(savedProfile));
-        setIsStarted(true);
-      } catch (e) {
-        console.error("Failed to parse fit_ke_profile", e);
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        setIsStarted(false);
+        return;
       }
-    }
+
+      const uid = session.user.id;
+      setUserId(uid);
+
+      const [{ data: profileRow }, { data: goalsRow }, { data: weightRows }] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", uid).single(),
+        supabase.from("goals").select("*").eq("user_id", uid).single(),
+        supabase.from("weight_logs").select("*").eq("user_id", uid).order("date", { ascending: false }),
+      ]);
+
+      if (profileRow) {
+        setProfile({ name: profileRow.name, email: profileRow.email });
+      }
+
+      if (goalsRow) {
+        setGoals({
+          calories: goalsRow.calories,
+          carbs: goalsRow.carbs,
+          protein: goalsRow.protein,
+          fat: goalsRow.fat,
+        });
+        if (goalsRow.target_weight_kg) {
+          setGoalWeight(goalsRow.target_weight_kg);
+          setSavedGoalWeight(goalsRow.target_weight_kg);
+        }
+        if (goalsRow.target_date) {
+          setGoalDate(goalsRow.target_date);
+          setSavedGoalDate(goalsRow.target_date);
+        }
+      }
+
+      if (weightRows) {
+        setWeightLogs(
+          weightRows.map((w: any) => ({ id: w.id, date: w.date, weightKg: w.weight_kg }))
+        );
+      }
+
+      setIsStarted(true);
+    };
+
+    init();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        setIsStarted(false);
+        setUserId(null);
+        setProfile(null);
+      }
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
-  // Save to localStorage
+  // Save local-only data to localStorage
   useEffect(() => {
     if (!mounted) return;
     localStorage.setItem("fit_ke_log", JSON.stringify(log));
-    localStorage.setItem("fit_ke_goals", JSON.stringify(goals));
     localStorage.setItem("fit_ke_water", JSON.stringify(waterMl));
     localStorage.setItem("fit_ke_water_goal", JSON.stringify(waterGoal));
     localStorage.setItem("fit_ke_exercises", JSON.stringify(exercises));
-    localStorage.setItem("fit_ke_weights", JSON.stringify(weightLogs));
-    localStorage.setItem("fit_ke_goal_weight", JSON.stringify(goalWeight));
-    localStorage.setItem("fit_ke_saved_goal_weight", JSON.stringify(savedGoalWeight));
-    localStorage.setItem("fit_ke_goal_date", JSON.stringify(goalDate));
-    localStorage.setItem("fit_ke_saved_goal_date", JSON.stringify(savedGoalDate));
     localStorage.setItem("fit_ke_journal", JSON.stringify(journalEntries));
-  }, [log, goals, waterMl, waterGoal, exercises, weightLogs, goalWeight, savedGoalWeight, goalDate, savedGoalDate, journalEntries, mounted]);
+  }, [log, waterMl, waterGoal, exercises, journalEntries, mounted]);
 
   if (!mounted) return null;
 
@@ -191,10 +233,9 @@ export default function Home() {
     setLog(log.filter(item => !(item.id === id && item.meal === meal)));
   };
 
-  // Dynamic Exercise Logic based on time and name lookup
   const calculateCaloriesForExercise = (name: string, mins: number) => {
     const matched = COMMON_EXERCISES.find(ex => ex.name.toLowerCase() === name.toLowerCase());
-    const rate = matched ? matched.ratePerMin : 5; // default 5 kcal/min
+    const rate = matched ? matched.ratePerMin : 5;
     return Math.round(mins * rate);
   };
 
@@ -231,34 +272,64 @@ export default function Home() {
     setExerciseCalories(150);
   };
 
-  // Weight Management Handlers
-  const saveGoalMilestone = (e: React.FormEvent) => {
+  // Persist edited daily goals to Supabase when the user finishes editing
+  const finishEditingGoals = async () => {
+    setIsEditingGoals(false);
+    if (!userId) return;
+    await supabase.from("goals").update({
+      calories: goals.calories,
+      carbs: goals.carbs,
+      protein: goals.protein,
+      fat: goals.fat,
+    }).eq("user_id", userId);
+  };
+
+  const saveGoalMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavedGoalWeight(goalWeight);
     setSavedGoalDate(goalDate);
+    if (!userId) return;
+    await supabase.from("goals").update({
+      target_weight_kg: goalWeight,
+      target_date: goalDate,
+    }).eq("user_id", userId);
   };
 
-  const addWeightLog = (e: React.FormEvent) => {
+  const addWeightLog = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentWeightInput) return;
+    if (!currentWeightInput || !userId) return;
 
-    const newLog: WeightLog = {
-      id: Date.now(),
-      date: new Date().toISOString().split('T')[0],
-      weightKg: Number(currentWeightInput),
-    };
-    setWeightLogs([newLog, ...weightLogs]);
-    setCurrentWeightInput("");
+    const today = new Date().toISOString().split("T")[0];
+    const { data, error } = await supabase
+      .from("weight_logs")
+      .insert({ user_id: userId, date: today, weight_kg: Number(currentWeightInput) })
+      .select()
+      .single();
+
+    if (!error && data) {
+      setWeightLogs([{ id: data.id, date: data.date, weightKg: data.weight_kg }, ...weightLogs]);
+      setCurrentWeightInput("");
+    }
   };
 
-  const updateWeightLog = (id: number) => {
+  const updateWeightLog = async (id: number | string) => {
     if (!editingWeightValue) return;
-    setWeightLogs(weightLogs.map(w => w.id === id ? { ...w, weightKg: Number(editingWeightValue) } : w));
+    const newVal = Number(editingWeightValue);
+    setWeightLogs(weightLogs.map(w => w.id === id ? { ...w, weightKg: newVal } : w));
     setEditingWeightId(null);
     setEditingWeightValue("");
+    if (userId) {
+      await supabase.from("weight_logs").update({ weight_kg: newVal }).eq("id", id);
+    }
   };
 
-  // Journal / Blog Handlers
+  const deleteWeightLog = async (id: number | string) => {
+    setWeightLogs(weightLogs.filter(item => item.id !== id));
+    if (userId) {
+      await supabase.from("weight_logs").delete().eq("id", id);
+    }
+  };
+
   const addJournalEntry = (e: React.FormEvent) => {
     e.preventDefault();
     if (!journalTitle.trim() || !journalContent.trim()) return;
@@ -278,10 +349,12 @@ export default function Home() {
     setJournalImageUrl("");
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("fit_ke_profile");
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setProfile(null);
+    setUserId(null);
     setIsStarted(false);
+    router.push("/");
   };
 
   return (
@@ -291,19 +364,19 @@ export default function Home() {
           /* PAGE 1: Landing View */
           <div className="bg-zinc-900/80 border border-emerald-500/30 rounded-3xl p-8 md:p-12 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center shadow-2xl shadow-emerald-950/20 my-auto">
             <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold px-3.5 py-1.5 rounded-full shadow-sm">
-              </div>
               <div className="space-y-3">
                 <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-zinc-100 leading-tight">
                   Fit KE: Your Ultimate <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Kenyan-First</span> Nutrition & Fitness Tracker
                 </h1>
-              
+                <p className="text-zinc-400 text-sm md:text-base leading-relaxed">
+                  Most fitness apps weren&apos;t built for Kenyan meals. Fit KE was. Track your meals, know your progress.
+                </p>
               </div>
               <button
                 onClick={() => router.push("/login")}
                 className="bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-zinc-950 font-extrabold px-8 py-3.5 rounded-xl text-sm transition shadow-lg shadow-emerald-500/25 cursor-pointer"
               >
-                Start For Free Today →
+                Start Today →
               </button>
             </div>
             <div className="relative bg-zinc-900 border border-zinc-800 rounded-2xl p-6 overflow-hidden shadow-inner flex flex-col justify-center items-center text-center h-64 md:h-80 space-y-4">
@@ -342,7 +415,7 @@ export default function Home() {
                 <div className="flex items-center gap-2">
                   {(log.length > 0 || waterMl > 0 || exercises.length > 0) && (
                     <button
-                      onClick={() => { setLog([]); setWaterMl(0); setExercises([]); localStorage.clear(); }}
+                      onClick={() => { setLog([]); setWaterMl(0); setExercises([]); }}
                       className="text-xs bg-zinc-900 hover:bg-rose-950/50 text-zinc-400 hover:text-rose-300 border border-zinc-800 hover:border-rose-900/50 px-3.5 py-1.5 rounded-lg transition cursor-pointer"
                     >
                       Reset Day
@@ -394,7 +467,7 @@ export default function Home() {
               </div>
             </header>
 
-            {/* TAB 1: NUTRITION & MACROS (Preserved Fully) */}
+            {/* TAB 1: NUTRITION & MACROS */}
             {activeTab === "nutrition" && (
               <div className="space-y-6">
                 <section className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-5 shadow-lg">
@@ -403,7 +476,7 @@ export default function Home() {
                       Daily Macro Targets {totalActiveCalories > 0 && <span className="text-emerald-400 lowercase font-normal">(Net: {netCalories} kcal after workouts)</span>}
                     </h2>
                     <button
-                      onClick={() => setIsEditingGoals(!isEditingGoals)}
+                      onClick={() => isEditingGoals ? finishEditingGoals() : setIsEditingGoals(true)}
                       className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition cursor-pointer"
                     >
                       {isEditingGoals ? "Done Editing" : "Edit Targets"}
@@ -578,12 +651,11 @@ export default function Home() {
               </div>
             )}
 
-            {/* TAB 2: WATER & EXERCISE (With Autocomplete & Dynamic Time Scaling) */}
+            {/* TAB 2: WATER & EXERCISE */}
             {activeTab === "fitness" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-bold text-zinc-200">Water & Exercise Tracking</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Water Card */}
                   <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
                     <div className="flex justify-between items-center">
                       <h3 className="text-zinc-100 font-bold flex items-center gap-2">💧 Daily Water Intake</h3>
@@ -620,7 +692,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Exercise Log Form with Autocomplete */}
                   <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
                     <h3 className="text-zinc-100 font-bold flex items-center gap-2">🏃‍♂️ Log Workout</h3>
                     <form onSubmit={addExercise} className="space-y-3 relative">
@@ -634,7 +705,6 @@ export default function Home() {
                           onFocus={() => setShowExerciseSuggestions(true)}
                           className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
                         />
-                        {/* Autocomplete Dropdown suggestions */}
                         {showExerciseSuggestions && (
                           <div className="absolute z-20 left-0 right-0 mt-1 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl max-h-40 overflow-y-auto">
                             {COMMON_EXERCISES.filter(item => item.name.toLowerCase().includes(exerciseName.toLowerCase())).map((item) => (
@@ -681,7 +751,6 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Exercises List */}
                 <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
                   <h3 className="text-zinc-100 font-bold">Today's Workouts ({totalActiveCalories} kcal total burned)</h3>
                   <div className="space-y-3">
@@ -710,12 +779,11 @@ export default function Home() {
               </div>
             )}
 
-            {/* TAB 3: WEIGHT & GOALS (Simplified Save Target & Editable Entries) */}
+            {/* TAB 3: WEIGHT & GOALS */}
             {activeTab === "weight" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-bold text-zinc-200">Weight & Goal Management</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Goal Configuration */}
                   <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
                     <h3 className="text-zinc-100 font-bold">🎯 Target Milestone</h3>
                     <form onSubmit={saveGoalMilestone} className="space-y-3">
@@ -749,7 +817,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Log Current Weight */}
                   <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
                     <h3 className="text-zinc-100 font-bold">⚖️ Record Current Weight</h3>
                     <form onSubmit={addWeightLog} className="space-y-4">
@@ -774,7 +841,6 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Weight History with Inline Edit */}
                 <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-4">
                   <h3 className="text-zinc-100 font-bold">Weight History Log</h3>
                   <div className="space-y-3">
@@ -808,7 +874,7 @@ export default function Home() {
                                 Edit
                               </button>
                               <button
-                                onClick={() => setWeightLogs(weightLogs.filter(item => item.id !== w.id))}
+                                onClick={() => deleteWeightLog(w.id)}
                                 className="text-[11px] text-rose-400 hover:text-rose-300 cursor-pointer"
                               >
                                 Delete
@@ -823,7 +889,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* TAB 4: BLOG & JOURNAL (Milestones, Pictures, Comments/Reflections) */}
+            {/* TAB 4: BLOG & JOURNAL */}
             {activeTab === "blog" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-bold text-zinc-200">Blog & Personal Journal</h2>
@@ -879,7 +945,6 @@ export default function Home() {
                   </form>
                 </div>
 
-                {/* Journal Feed */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-bold text-zinc-200">Your Journal & Milestones Feed</h3>
                   {journalEntries.length === 0 ? (
